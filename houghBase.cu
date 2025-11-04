@@ -189,9 +189,36 @@ const float radInc   = degreeInc * M_PI / 180.0f;
 // CPU reference (como en tu base)
 void CPU_HoughTran(unsigned char *pic, int w, int h, int **acc);
 
-// --- Prototipo del kernel (se implementa en v0.2)
+// v0.2 - Kernel global
 __global__ void GPU_HoughTranGlobal(const unsigned char *pic, int w, int h,
-                                    int *acc, float rMax, float rScale);
+                                    int *acc, float rMax, float rScale)
+{
+  int i = blockIdx.x * blockDim.x + threadIdx.x; // columna (x)
+  int j = blockIdx.y * blockDim.y + threadIdx.y; // fila (y)
+  if (i >= w || j >= h) return;
+
+  int idx = j * w + i;
+  if (pic[idx] == 0) return; // solo “pixeles blancos” (o >0)
+
+  // centro de la imagen como origen
+  int xCent = w >> 1;
+  int yCent = h >> 1;
+
+  int xCoord = i - xCent;
+  int yCoord = yCent - j;  // y invertida
+
+  float theta = 0.0f;
+  for (int tIdx = 0; tIdx < degreeBins; tIdx++){
+    float c = cosf(theta);
+    float s = sinf(theta);
+    float r = xCoord * c + yCoord * s;
+    int rIdx = (int)((r + rMax) / rScale);
+    if (rIdx >= 0 && rIdx < rBins){
+      atomicAdd(&acc[rIdx * degreeBins + tIdx], 1);
+    }
+    theta += radInc;
+  }
+}
 
 // --- main baseline, sin tiempos todavía (se añaden en v0.3)
 int main(int argc, char **argv){
