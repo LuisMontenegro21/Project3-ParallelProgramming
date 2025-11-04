@@ -171,6 +171,73 @@ int main (int argc, char **argv)
   }
   printf("Done!\n");
 
+  #ifndef CHECK_CUDA
+#define CHECK_CUDA(x) do { \
+  cudaError_t err = (x); \
+  if (err != cudaSuccess) { \
+    fprintf(stderr, "CUDA Error %s at %s:%d\n", cudaGetErrorString(err), __FILE__, __LINE__); \
+    exit(1); \
+  } \
+} while(0)
+#endif
+
+const int degreeInc  = 2;
+const int degreeBins = 180 / degreeInc;
+const int rBins      = 100;
+const float radInc   = degreeInc * M_PI / 180.0f;
+
+// CPU reference (como en tu base)
+void CPU_HoughTran(unsigned char *pic, int w, int h, int **acc);
+
+// --- Prototipo del kernel (se implementa en v0.2)
+__global__ void GPU_HoughTranGlobal(const unsigned char *pic, int w, int h,
+                                    int *acc, float rMax, float rScale);
+
+// --- main baseline, sin tiempos todavía (se añaden en v0.3)
+int main(int argc, char **argv){
+  if (argc < 2) {
+    fprintf(stderr, "Uso: %s <input.pgm>\n", argv[0]);
+    return 1;
+  }
+
+  PGMImage inImg(argv[1]);
+  int w = inImg.x_dim;
+  int h = inImg.y_dim;
+
+  // CPU baseline
+  int *cpuht = nullptr;
+  CPU_HoughTran(inImg.pixels, w, h, &cpuht);
+
+  // Reservas device
+  unsigned char *d_img = nullptr;
+  int *d_hough = nullptr;
+  CHECK_CUDA(cudaMalloc(&d_img, sizeof(unsigned char)*w*h));
+  CHECK_CUDA(cudaMalloc(&d_hough, sizeof(int)*degreeBins*rBins));
+  CHECK_CUDA(cudaMemset(d_hough, 0, sizeof(int)*degreeBins*rBins));
+  CHECK_CUDA(cudaMemcpy(d_img, inImg.pixels, sizeof(unsigned char)*w*h, cudaMemcpyHostToDevice));
+
+  // Parámetros r
+  float rMax   = sqrtf(1.0f*w*w + 1.0f*h*h)*0.5f;
+  float rScale = (2.0f*rMax)/rBins;
+
+  // Llamada del kernel (se define en v0.2)
+  dim3 block(16, 16);
+  dim3 grid((w + block.x - 1)/block.x, (h + block.y - 1)/block.y);
+  GPU_HoughTranGlobal<<<grid, block>>>(d_img, w, h, d_hough, rMax, rScale);
+  CHECK_CUDA(cudaDeviceSynchronize());
+  CHECK_CUDA(cudaGetLastError());
+
+  // Copiar resultados
+  int *h_hough = (int*)malloc(sizeof(int)*degreeBins*rBins);
+  CHECK_CUDA(cudaMemcpy(h_hough, d_hough, sizeof(int)*degreeBins*rBins, cudaMemcpyDeviceToHost));
+
+  // Comparar
+  int mism=0;
+  for (int i=0;i<degreeBins*rBins;i++){
+    if (cpuht[i]!=h_hough[i]) { mism++; }
+  }
+  printf("Comparación CPU vs GPU: mismatches=%d (de %d)\n", mism, degreeBins*rBins);
+
   // TODO clean-up
 
   return 0;
