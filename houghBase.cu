@@ -1,7 +1,12 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
-#include "common/pgm.cpp"
+#include <cuda_runtime.h>
+#include "common/pgm.h"
+
+#ifndef M_PI
+#define M_PI 3.14159265358979323846
+#endif
 
 // Parámetros de la transformada de Hough
 #define DEGREE_INC 2               // Incremento de ángulo (2 grados)
@@ -18,12 +23,12 @@ __global__ void houghTransformKernel(
 
     if (gloX >= width || gloY >= height) return;
 
-    int idx = gloY * width + gloX;  // Índice lineal del pixel
+    int idx = gloY * width + gloX;
     int pixel = d_image[idx];
-    if (pixel < 255) return; // Solo consideramos píxeles blancos (bordes)
+    if (pixel < 255) return;
 
     float xCoord = gloX - (width / 2.0f);
-    float yCoord = (height / 2.0f) - gloY; // invertido eje Y
+    float yCoord = (height / 2.0f) - gloY;
 
     for (int t = 0; t < degreeBins; t++) {
         float theta = t * DEGREE_INC * M_PI / 180.0f;
@@ -35,7 +40,7 @@ __global__ void houghTransformKernel(
     }
 }
 
-// Función host: transformada de Hough usando memoria global
+// Función host: transformada de Hough
 void houghTransformCPU(const char* inputFile, const char* outputFile) {
     // Leer imagen
     PGMImage* img = readPGM(inputFile);
