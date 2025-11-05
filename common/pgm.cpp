@@ -1,13 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-
-// Estructura básica de una imagen PGM
-typedef struct {
-    int width;
-    int height;
-    int* data;
-} PGMImage;
+#include "pgm.h"
 
 // Función para leer una imagen PGM en escala de grises
 PGMImage* readPGM(const char* filename) {
@@ -41,7 +35,7 @@ PGMImage* readPGM(const char* filename) {
     // Leer ancho, alto y valor máximo
     fscanf(fp, "%d %d", &width, &height);
     fscanf(fp, "%d", &maxval);
-    fgetc(fp); // Salto de línea después de maxval
+    fgetc(fp);
 
     // Reservar memoria y leer datos
     int* data = (int*)malloc(width * height * sizeof(int));
@@ -60,7 +54,7 @@ PGMImage* readPGM(const char* filename) {
 }
 
 // Función para guardar una imagen PGM en escala de grises
-void writePGM(const char* filename, int* data, int width, int height) {
+void writePGM(const char* filename, const int* data, int width, int height) {
     FILE* fp = fopen(filename, "wb");
     if (!fp) {
         fprintf(stderr, "Error: no se pudo escribir en %s\n", filename);
