@@ -38,12 +38,12 @@ PGMImage* readPGM(const char* filename) {
     fgetc(fp);
 
     // Reservar memoria y leer datos
-    int* data = (int*)malloc(width * height * sizeof(int));
-    for (int i = 0; i < width * height; i++) {
-        unsigned char pixel;
-        fread(&pixel, sizeof(unsigned char), 1, fp);
-        data[i] = (int)pixel;
+    unsigned char* data = (unsigned char*)malloc(width * height * sizeof(unsigned char)); // usar char en vez de int, 1 byte vs 4 bytes
+    if (!data) {
+        fprintf(stderr, "Error allocating data in PGM");
+        exit(1);
     }
+    fread(data, 1, width * height, fp);
     fclose(fp);
 
     PGMImage* img = (PGMImage*)malloc(sizeof(PGMImage));
@@ -67,4 +67,10 @@ void writePGM(const char* filename, const int* data, int width, int height) {
         fwrite(&pixel, sizeof(unsigned char), 1, fp);
     }
     fclose(fp);
+}
+
+
+void freePGM(PGMImage* img) {
+    free(img->data);
+    free(img);
 }

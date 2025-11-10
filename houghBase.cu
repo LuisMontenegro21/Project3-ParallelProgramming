@@ -99,8 +99,7 @@ void houghTransformCPU(const char* inputFile, const char* outputFile) {
     // Liberar memoria
     free(h_acc);
     free(accImage);
-    free(img->data);
-    free(img);
+    freePGM(img);
     cudaFree(d_image);
     cudaFree(d_acc);
 }
