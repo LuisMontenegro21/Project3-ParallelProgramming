@@ -74,3 +74,14 @@ void freePGM(PGMImage* img) {
     free(img->data);
     free(img);
 }
+
+void writePPM(const char* filename, const unsigned char* rgb, int width, int height) {
+    FILE* fp = fopen(filename, "wb");
+    if (!fp) {
+        fprintf(stderr, "Error: no se pudo escribir en %s\n", filename);
+        exit(1);
+    }
+    fprintf(fp, "P6\n%d %d\n255\n", width, height);
+    fwrite(rgb, 1, width * height * 3, fp);
+    fclose(fp);
+}

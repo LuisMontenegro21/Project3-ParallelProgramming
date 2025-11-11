@@ -13,7 +13,9 @@ typedef struct {
 PGMImage* readPGM(const char* filename);
 
 void writePGM(const char* filename, const int* data, int width, int height);
-void freePGM(PGMImage* img); // check if reallty needed
+void freePGM(PGMImage* img);
+
+void writePPM(const char* filename, const unsigned char* rgb, int width, int height);
 
 #ifdef __cplusplus
 }
