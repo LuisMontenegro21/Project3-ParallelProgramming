@@ -1,0 +1,14 @@
+----------------------------------------
+Reporte de ejecución: Hough (memoria CONSTANTE)
+Imagen: runway.pgm
+Resolución: 800x600
+Tiempo GPU: 0.185 ms (185 µs, 0.000185 s)
+----------------------------------------
+
+----------------------------------------
+Reporte de ejecución: Hough (memoria CONSTANTE)
+Imagen: runway.pgm
+Resolución: 800x600
+Tiempo GPU: 0.187 ms (187 µs, 0.000187 s)
+----------------------------------------
+

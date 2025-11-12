@@ -1,0 +1,14 @@
+----------------------------------------
+Reporte de ejecución: Hough (memoria GLOBAL)
+Imagen: runway.pgm
+Resolución: 800x600
+Tiempo GPU: 0.175 ms (175 µs, 0.000175 s)
+----------------------------------------
+
+----------------------------------------
+Reporte de ejecución: Hough (memoria GLOBAL)
+Imagen: runway.pgm
+Resolución: 800x600
+Tiempo GPU: 0.221 ms (221 µs, 0.000221 s)
+----------------------------------------
+

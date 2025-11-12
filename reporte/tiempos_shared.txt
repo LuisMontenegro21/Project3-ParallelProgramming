@@ -1,0 +1,7 @@
+----------------------------------------
+Reporte de ejecución: Hough (memoria COMPARTIDA)
+Imagen: runway.pgm
+Resolución: 800x600
+Tiempo GPU: 0.202 ms (202 µs, 0.000202 s)
+----------------------------------------
+

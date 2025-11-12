@@ -1,0 +1,138 @@
+================ BITÁCORA DE EJECUCIÓN ================
+Imagen: runway.pgm
+Resolución: 800x600
+Iteraciones por fase: 10
+
+FASE 1 - Memoria GLOBAL
+Iteración 01: 0.17619 ms
+Iteración 02: 0.02026 ms
+Iteración 03: 0.02029 ms
+Iteración 04: 0.02259 ms
+Iteración 05: 0.01958 ms
+Iteración 06: 0.02048 ms
+Iteración 07: 0.04506 ms
+Iteración 08: 0.02179 ms
+Iteración 09: 0.02026 ms
+Iteración 10: 0.01885 ms
+----------------------------------------------
+
+FASE 2 - Memoria GLOBAL + CONSTANTE
+Iteración 01: 0.02048 ms
+Iteración 02: 0.02048 ms
+Iteración 03: 0.02022 ms
+Iteración 04: 0.02051 ms
+Iteración 05: 0.04515 ms
+Iteración 06: 0.01987 ms
+Iteración 07: 0.02048 ms
+Iteración 08: 0.02022 ms
+Iteración 09: 0.02048 ms
+Iteración 10: 0.02048 ms
+----------------------------------------------
+
+FASE 3 - Memoria GLOBAL + CONSTANTE + COMPARTIDA
+Iteración 01: 0.00234 ms
+Iteración 02: 0.00272 ms
+Iteración 03: 0.00346 ms
+Iteración 04: 0.00486 ms
+Iteración 05: 0.02509 ms
+Iteración 06: 0.00362 ms
+Iteración 07: 0.00358 ms
+Iteración 08: 0.00234 ms
+Iteración 09: 0.00586 ms
+Iteración 10: 0.00208 ms
+----------------------------------------------
+
+--------------------------------------------------------
+
+================ BITÁCORA DE EJECUCIÓN ================
+Imagen: runway.pgm
+Resolución: 800x600
+Iteraciones por fase: 10
+
+FASE 1 - Memoria GLOBAL
+Iteración 01: 0.18678 ms
+Iteración 02: 0.01987 ms
+Iteración 03: 0.02048 ms
+Iteración 04: 0.01997 ms
+Iteración 05: 0.02029 ms
+Iteración 06: 0.02038 ms
+Iteración 07: 0.02032 ms
+Iteración 08: 0.02090 ms
+Iteración 09: 0.02662 ms
+Iteración 10: 0.02397 ms
+----------------------------------------------
+
+FASE 2 - Memoria GLOBAL + CONSTANTE
+Iteración 01: 0.02061 ms
+Iteración 02: 0.02150 ms
+Iteración 03: 0.02083 ms
+Iteración 04: 0.02048 ms
+Iteración 05: 0.02048 ms
+Iteración 06: 0.02048 ms
+Iteración 07: 0.02061 ms
+Iteración 08: 0.02150 ms
+Iteración 09: 0.01920 ms
+Iteración 10: 0.02042 ms
+----------------------------------------------
+
+FASE 3 - Memoria GLOBAL + CONSTANTE + COMPARTIDA
+Iteración 01: 0.00205 ms
+Iteración 02: 0.00483 ms
+Iteración 03: 0.00374 ms
+Iteración 04: 0.00211 ms
+Iteración 05: 0.00205 ms
+Iteración 06: 0.02630 ms
+Iteración 07: 0.02134 ms
+Iteración 08: 0.00374 ms
+Iteración 09: 0.00272 ms
+Iteración 10: 0.00685 ms
+----------------------------------------------
+
+--------------------------------------------------------
+
+================ BITÁCORA DE EJECUCIÓN ================
+Imagen: runway.pgm
+Resolución: 800x600
+Iteraciones por fase: 10
+
+FASE 1 - Memoria GLOBAL
+Iteración 01: 0.18685 ms
+Iteración 02: 0.02038 ms
+Iteración 03: 0.02048 ms
+Iteración 04: 0.02042 ms
+Iteración 05: 0.02048 ms
+Iteración 06: 0.03754 ms
+Iteración 07: 0.02154 ms
+Iteración 08: 0.01901 ms
+Iteración 09: 0.04333 ms
+Iteración 10: 0.04058 ms
+----------------------------------------------
+
+FASE 2 - Memoria GLOBAL + CONSTANTE
+Iteración 01: 0.02522 ms
+Iteración 02: 0.02150 ms
+Iteración 03: 0.02157 ms
+Iteración 04: 0.02048 ms
+Iteración 05: 0.02848 ms
+Iteración 06: 0.02957 ms
+Iteración 07: 0.02038 ms
+Iteración 08: 0.02435 ms
+Iteración 09: 0.04362 ms
+Iteración 10: 0.01942 ms
+----------------------------------------------
+
+FASE 3 - Memoria GLOBAL + CONSTANTE + COMPARTIDA
+Iteración 01: 0.00205 ms
+Iteración 02: 0.00205 ms
+Iteración 03: 0.00397 ms
+Iteración 04: 0.02138 ms
+Iteración 05: 0.00438 ms
+Iteración 06: 0.00410 ms
+Iteración 07: 0.00339 ms
+Iteración 08: 0.00349 ms
+Iteración 09: 0.00266 ms
+Iteración 10: 0.00266 ms
+----------------------------------------------
+
+--------------------------------------------------------
+

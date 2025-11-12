@@ -1,7 +1,6 @@
 # ignore virtual environments
 venv/
 .venv/
-
 # Prerequisites
 *.d
 .vscode/
