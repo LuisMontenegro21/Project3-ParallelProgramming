@@ -9,12 +9,17 @@
 #define R_BINS 200
 #define THRESHOLD 120
 #define ITERACIONES 10
+#define TILE_ANGULOS 32
 
+// ----------------------
 // Memoria constante
+// ----------------------
 __constant__ float d_cos[DEGREE_BINS];
 __constant__ float d_sin[DEGREE_BINS];
 
+// ----------------------
 // Kernel: memoria GLOBAL
+// ----------------------
 __global__ void kernelGlobal(unsigned char* img, int width, int height,
                              int* acc, float* cosT, float* sinT,
                              int rBins, int degreeBins, float rMax, float rScale)
@@ -27,7 +32,7 @@ __global__ void kernelGlobal(unsigned char* img, int width, int height,
     int xCoord = x - width / 2;
     int yCoord = height / 2 - y;
 
-    if (img[y * width + x] > 250) {
+    if (img[y * width + x] > 80) {
         for (int tIdx = 0; tIdx < degreeBins; tIdx++) {
             float r = xCoord * cosT[tIdx] + yCoord * sinT[tIdx];
             int rIdx = (int)((r + rMax) * rScale);
@@ -37,7 +42,9 @@ __global__ void kernelGlobal(unsigned char* img, int width, int height,
     }
 }
 
-// Kernel: memoria CONSTANTE
+// ----------------------
+// Kernel: memoria CONST
+// ----------------------
 __global__ void kernelConst(unsigned char* img, int width, int height,
                             int* acc, int rBins, int degreeBins,
                             float rMax, float rScale)
@@ -50,7 +57,7 @@ __global__ void kernelConst(unsigned char* img, int width, int height,
     int xCoord = x - width / 2;
     int yCoord = height / 2 - y;
 
-    if (img[y * width + x] > 250) {
+    if (img[y * width + x] > 80) {
         for (int tIdx = 0; tIdx < degreeBins; tIdx++) {
             float r = xCoord * d_cos[tIdx] + yCoord * d_sin[tIdx];
             int rIdx = (int)((r + rMax) * rScale);
@@ -60,17 +67,25 @@ __global__ void kernelConst(unsigned char* img, int width, int height,
     }
 }
 
-// Kernel: memoria COMPARTIDA
+// ----------------------
+// Kernel: memoria SHARED
+// ----------------------
 __global__ void kernelShared(unsigned char* img, int width, int height,
                              int* acc, int rBins, int degreeBins,
                              float rMax, float rScale)
 {
     extern __shared__ int localAcc[];
+
     int tid = threadIdx.x;
     int gloID = blockIdx.x * blockDim.x + tid;
 
-    // Inicialización
-    for (int i = tid; i < rBins * degreeBins; i += blockDim.x)
+    // bloque procesa ángulos desde:
+    int angStart = blockIdx.y * TILE_ANGULOS;
+    int angEnd   = min(angStart + TILE_ANGULOS, degreeBins);
+    int angCount = angEnd - angStart;
+
+    // Inicializar solo el TILE correspondiente (mucho más pequeño)
+    for (int i = tid; i < angCount * rBins; i += blockDim.x)
         localAcc[i] = 0;
     __syncthreads();
 
@@ -80,26 +95,68 @@ __global__ void kernelShared(unsigned char* img, int width, int height,
         int xCoord = x - width / 2;
         int yCoord = height / 2 - y;
 
-        if (img[y * width + x] > 250) {
-            for (int tIdx = 0; tIdx < degreeBins; tIdx++) {
-                float r = xCoord * d_cos[tIdx] + yCoord * d_sin[tIdx];
+        if (img[y * width + x] > 80) {
+            for (int tIdx = 0; tIdx < angCount; tIdx++) {
+
+                float theta = (angStart + tIdx) * DEG2RAD;
+                float r = xCoord * cosf(theta) + yCoord * sinf(theta);
+
                 int rIdx = (int)((r + rMax) * rScale);
-                if (rIdx >= 0 && rIdx < rBins)
-                    atomicAdd(&localAcc[tIdx * rBins + rIdx], 1);
+
+                if (rIdx >= 0 && rIdx < rBins) {
+                    int localIndex = tIdx * rBins + rIdx;
+                    atomicAdd(&localAcc[localIndex], 1);
+                }
             }
         }
     }
     __syncthreads();
 
-    // Fusionar local → global
-    for (int i = tid; i < rBins * degreeBins; i += blockDim.x) {
+    // Guardar a acumulador global
+    for (int i = tid; i < angCount * rBins; i += blockDim.x) {
         int val = localAcc[i];
-        if (val > 0)
-            atomicAdd(&acc[i], val);
+        if (val > 0) {
+            int globalIndex = (angStart * rBins) + i;
+            atomicAdd(&acc[globalIndex], val);
+        }
     }
 }
 
-// Función para generar imagen RGB con líneas detectadas
+// ===================================================
+//  GENERAR LA TRANSFORMADA HOUGH A COLOR
+// ===================================================
+void guardarTransformadaHough(const char* nombre_salida, int* acc,
+                              int rBins, int degreeBins)
+{
+    int maxVal = 0;
+    for (int i = 0; i < rBins * degreeBins; i++)
+        if (acc[i] > maxVal) maxVal = acc[i];
+
+    unsigned char* img = (unsigned char*)malloc(rBins * degreeBins * 3);
+
+    for (int t = 0; t < degreeBins; t++) {
+        for (int r = 0; r < rBins; r++) {
+            int val = acc[t * rBins + r];
+            float norm = (float)val / maxVal;
+
+            unsigned char red   = (unsigned char)(255 * powf(norm, 0.5f));
+            unsigned char green = (unsigned char)(255 * norm * 0.25f);
+            unsigned char blue  = (unsigned char)(255 * (1.0f - norm));
+
+            int idx = (t * rBins + r) * 3;
+            img[idx + 0] = red;
+            img[idx + 1] = green;
+            img[idx + 2] = blue;
+        }
+    }
+
+    writePPM(nombre_salida, img, rBins, degreeBins);
+    free(img);
+}
+
+// ===================================================
+//  DIBUJAR LÍNEAS SOBRE IMAGEN ORIGINAL (RGB)
+// ===================================================
 void dibujarLineasColor(const char* nombre_salida, const PGMImage* img,
                         int* h_acc, int width, int height,
                         int rBins, int degreeBins,
@@ -108,29 +165,28 @@ void dibujarLineasColor(const char* nombre_salida, const PGMImage* img,
 {
     unsigned char* rgb = (unsigned char*)malloc(width * height * 3);
 
-    // Convertir imagen original a RGB base gris
+    // Fondo gris
     for (int i = 0; i < width * height; i++) {
-        unsigned char gray = img->data[i];
-        rgb[3 * i + 0] = gray;
-        rgb[3 * i + 1] = gray;
-        rgb[3 * i + 2] = gray;
+        unsigned char g = img->data[i];
+        rgb[3*i+0] = g;
+        rgb[3*i+1] = g;
+        rgb[3*i+2] = g;
     }
 
-    // Dibujar líneas
+    // Líneas
     for (int tIdx = 0; tIdx < degreeBins; tIdx++) {
         for (int rIdx = 0; rIdx < rBins; rIdx++) {
-            int val = h_acc[tIdx * rBins + rIdx];
-            if (val > THRESHOLD) {
+            if (h_acc[tIdx * rBins + rIdx] > THRESHOLD) {
                 float theta = tIdx * DEG2RAD;
                 float r = rIdx / rScale - rMax;
 
                 for (int x = 0; x < width; x++) {
-                    int y = (int)((r - ((x - width / 2) * cosf(theta))) / sinf(theta) + height / 2);
+                    int y = (int)((r - ((x - width/2)*cosf(theta))) / sinf(theta) + height/2);
                     if (y >= 0 && y < height) {
                         int idx = y * width + x;
-                        rgb[3 * idx + 0] = rColor;
-                        rgb[3 * idx + 1] = gColor;
-                        rgb[3 * idx + 2] = bColor;
+                        rgb[3*idx+0] = rColor;
+                        rgb[3*idx+1] = gColor;
+                        rgb[3*idx+2] = bColor;
                     }
                 }
             }
@@ -141,7 +197,10 @@ void dibujarLineasColor(const char* nombre_salida, const PGMImage* img,
     free(rgb);
 }
 
-// Función para ejecutar N veces y promediar
+// ===================================================
+//   EJECUTAR KERNELS (10 mediciones)
+// ===================================================
+
 void ejecutarKernelGlobal(FILE* rep, unsigned char* d_img, int* d_acc,
                           float* d_cos, float* d_sin,
                           int width, int height,
@@ -156,16 +215,19 @@ void ejecutarKernelGlobal(FILE* rep, unsigned char* d_img, int* d_acc,
     cudaEventCreate(&stop);
 
     fprintf(rep, "FASE 1 - Memoria GLOBAL\n");
+
     for (int i = 0; i < ITERACIONES; i++) {
-        cudaMemset(d_acc, 0, sizeof(int) * degreeBins * rBins);
+        cudaMemset(d_acc, 0, sizeof(int)*rBins*degreeBins);
+
         cudaEventRecord(start);
         kernelGlobal<<<blocks, threads>>>(d_img, width, height, d_acc,
                                           d_cos, d_sin, rBins, degreeBins, rMax, rScale);
         cudaEventRecord(stop);
         cudaEventSynchronize(stop);
+
         float ms;
         cudaEventElapsedTime(&ms, start, stop);
-        fprintf(rep, "Iteración %02d: %.5f ms\n", i + 1, ms);
+        fprintf(rep, "Iteración %02d: %.5f ms\n", i+1, ms);
     }
     fprintf(rep, "----------------------------------------------\n\n");
 
@@ -185,17 +247,20 @@ void ejecutarKernelConst(FILE* rep, unsigned char* d_img, int* d_acc,
     cudaEventCreate(&start);
     cudaEventCreate(&stop);
 
-    fprintf(rep, "FASE 2 - Memoria GLOBAL + CONSTANTE\n");
+    fprintf(rep, "FASE 2 - GLOBAL + CONSTANTE\n");
+
     for (int i = 0; i < ITERACIONES; i++) {
-        cudaMemset(d_acc, 0, sizeof(int) * degreeBins * rBins);
+        cudaMemset(d_acc, 0, sizeof(int)*rBins*degreeBins);
+
         cudaEventRecord(start);
         kernelConst<<<blocks, threads>>>(d_img, width, height, d_acc,
                                          rBins, degreeBins, rMax, rScale);
         cudaEventRecord(stop);
         cudaEventSynchronize(stop);
+
         float ms;
         cudaEventElapsedTime(&ms, start, stop);
-        fprintf(rep, "Iteración %02d: %.5f ms\n", i + 1, ms);
+        fprintf(rep, "Iteración %02d: %.5f ms\n", i+1, ms);
     }
     fprintf(rep, "----------------------------------------------\n\n");
 
@@ -210,23 +275,29 @@ void ejecutarKernelShared(FILE* rep, unsigned char* d_img, int* d_acc,
     int imgSize = width * height;
     int threads = 256;
     int blocks = (imgSize + threads - 1) / threads;
-    size_t sharedSize = sizeof(int) * rBins * degreeBins;
+    dim3 blockDim(256);
+    dim3 gridDim((imgSize + 255) / 256, (degreeBins + TILE_ANGULOS - 1) / TILE_ANGULOS);
+
+    size_t sharedSize = TILE_ANGULOS * rBins * sizeof(int);
 
     cudaEvent_t start, stop;
     cudaEventCreate(&start);
     cudaEventCreate(&stop);
 
-    fprintf(rep, "FASE 3 - Memoria GLOBAL + CONSTANTE + COMPARTIDA\n");
+    fprintf(rep, "FASE 3 - GLOBAL + CONSTANTE + SHARED\n");
+
     for (int i = 0; i < ITERACIONES; i++) {
-        cudaMemset(d_acc, 0, sizeof(int) * degreeBins * rBins);
+        cudaMemset(d_acc, 0, sizeof(int)*rBins*degreeBins);
+
         cudaEventRecord(start);
-        kernelShared<<<blocks, threads, sharedSize>>>(d_img, width, height,
+        kernelShared<<<gridDim, blockDim, sharedSize>>>(d_img, width, height,
                                                       d_acc, rBins, degreeBins, rMax, rScale);
         cudaEventRecord(stop);
         cudaEventSynchronize(stop);
+
         float ms;
         cudaEventElapsedTime(&ms, start, stop);
-        fprintf(rep, "Iteración %02d: %.5f ms\n", i + 1, ms);
+        fprintf(rep, "Iteración %02d: %.5f ms\n", i+1, ms);
     }
     fprintf(rep, "----------------------------------------------\n\n");
 
@@ -235,7 +306,9 @@ void ejecutarKernelShared(FILE* rep, unsigned char* d_img, int* d_acc,
 }
 
 
-// MAIN
+// ===================================================
+//                      MAIN
+// ===================================================
 int main(int argc, char** argv)
 {
     if (argc < 2) {
@@ -247,11 +320,14 @@ int main(int argc, char** argv)
     PGMImage* img = readPGM(argv[1]);
     int width = img->width, height = img->height;
     int imgSize = width * height;
-    int degreeBins = DEGREE_BINS, rBins = R_BINS;
-    float rMax = sqrtf(width * width + height * height) / 2.0f;
-    float rScale = (float)rBins / (2.0f * rMax);
 
-    // Host
+    int degreeBins = DEGREE_BINS;
+    int rBins = R_BINS;
+
+    float rMax = sqrtf(width*width + height*height) / 2.f;
+    float rScale = (float)rBins / (2.f*rMax);
+
+    // Host pre-cálculo
     float *h_cos = (float*)malloc(sizeof(float) * degreeBins);
     float *h_sin = (float*)malloc(sizeof(float) * degreeBins);
     for (int i = 0; i < degreeBins; i++) {
@@ -262,75 +338,85 @@ int main(int argc, char** argv)
 
     // Device
     unsigned char* d_img;
-    float *d_cos, *d_sin;
+    float *d_cos_, *d_sin_;
     int* d_acc;
     cudaMalloc(&d_img, sizeof(unsigned char) * imgSize);
-    cudaMalloc(&d_cos, sizeof(float) * degreeBins);
-    cudaMalloc(&d_sin, sizeof(float) * degreeBins);
+    cudaMalloc(&d_cos_, sizeof(float) * degreeBins);
+    cudaMalloc(&d_sin_, sizeof(float) * degreeBins);
     cudaMalloc(&d_acc, sizeof(int) * degreeBins * rBins);
-    cudaMemcpy(d_img, img->data, sizeof(unsigned char) * imgSize, cudaMemcpyHostToDevice);
-    cudaMemcpy(d_cos, h_cos, sizeof(float) * degreeBins, cudaMemcpyHostToDevice);
-    cudaMemcpy(d_sin, h_sin, sizeof(float) * degreeBins, cudaMemcpyHostToDevice);
-    cudaMemcpyToSymbol(d_cos, h_cos, sizeof(float) * degreeBins);
-    cudaMemcpyToSymbol(d_sin, h_sin, sizeof(float) * degreeBins);
+
+    cudaMemcpy(d_img, img->data, sizeof(unsigned char)*imgSize, cudaMemcpyHostToDevice);
+    cudaMemcpy(d_cos_, h_cos, sizeof(float)*degreeBins, cudaMemcpyHostToDevice);
+    cudaMemcpy(d_sin_, h_sin, sizeof(float)*degreeBins, cudaMemcpyHostToDevice);
+    cudaMemcpyToSymbol(d_cos, h_cos, sizeof(float)*degreeBins);
+    cudaMemcpyToSymbol(d_sin, h_sin, sizeof(float)*degreeBins);
 
     mkdir("reporte", 0777);
     FILE* rep = fopen("reporte/bitacora_tiempos.txt", "a");
-    fprintf(rep, "================ BITÁCORA DE EJECUCIÓN ================\n");
-    fprintf(rep, "Imagen: %s\nResolución: %dx%d\nIteraciones por fase: %d\n\n", argv[1], width, height, ITERACIONES);
+    fprintf(rep, "================ BITÁCORA TRANSFORMADA HOUGH ================\n");
+    fprintf(rep, "Imagen: %s\nResolución: %dx%d\nIteraciones: %d\n\n",
+            argv[1], width, height, ITERACIONES);
 
-    // ---- FASE 1: Global ----
-    ejecutarKernelGlobal(rep, d_img, d_acc, d_cos, d_sin,
-                     width, height, rBins, degreeBins, rMax, rScale);
-    printf("Fase 1 completada (GLOBAL)\n");
+    // --------------------
+    //   FASE 1 (GLOBAL)
+    // --------------------
+    ejecutarKernelGlobal(rep, d_img, d_acc, d_cos_, d_sin_,
+                         width, height, rBins, degreeBins, rMax, rScale);
 
-    int* h_acc_global = (int*)calloc(degreeBins * rBins, sizeof(int));
-    cudaMemcpy(h_acc_global, d_acc, sizeof(int) * degreeBins * rBins, cudaMemcpyDeviceToHost);
+    int* h_acc_global = (int*)calloc(degreeBins*rBins, sizeof(int));
+    cudaMemcpy(h_acc_global, d_acc, sizeof(int)*degreeBins*rBins, cudaMemcpyDeviceToHost);
+
     dibujarLineasColor("output_global.ppm", img, h_acc_global,
-                    width, height, rBins, degreeBins, rMax, rScale,
-                    0, 0, 255); // azul
-    free(h_acc_global);
-    printf("Imagen generada: output_global.ppm\n");
+                       width, height, rBins, degreeBins, rMax, rScale,
+                       0,0,255);
+
+    guardarTransformadaHough("hough_global.ppm", h_acc_global, rBins, degreeBins);
 
 
-    // ---- FASE 2: Global + Constante ----
+    // --------------------
+    //   FASE 2 (CONST)
+    // --------------------
     ejecutarKernelConst(rep, d_img, d_acc,
-                    width, height, rBins, degreeBins, rMax, rScale);
-    printf("Fase 2 completada (CONSTANTE)\n");
+                        width, height, rBins, degreeBins, rMax, rScale);
 
-    int* h_acc_const = (int*)calloc(degreeBins * rBins, sizeof(int));
-    cudaMemcpy(h_acc_const, d_acc, sizeof(int) * degreeBins * rBins, cudaMemcpyDeviceToHost);
+    int* h_acc_const = (int*)calloc(degreeBins*rBins, sizeof(int));
+    cudaMemcpy(h_acc_const, d_acc, sizeof(int)*degreeBins*rBins, cudaMemcpyDeviceToHost);
+
     dibujarLineasColor("output_const.ppm", img, h_acc_const,
-                    width, height, rBins, degreeBins, rMax, rScale,
-                    0, 255, 0); // verde
-    free(h_acc_const);
-    printf("Imagen generada: output_const.ppm\n");
+                       width, height, rBins, degreeBins, rMax, rScale,
+                       0,255,0);
+
+    guardarTransformadaHough("hough_const.ppm", h_acc_const, rBins, degreeBins);
 
 
-    // ---- FASE 3: Global + Constante + Compartida ----
+    // --------------------
+    //   FASE 3 (SHARED)
+    // --------------------
     ejecutarKernelShared(rep, d_img, d_acc,
-                     width, height, rBins, degreeBins, rMax, rScale);
-    printf("Fase 3 completada (COMPARTIDA)\n");
-    fprintf(rep, "--------------------------------------------------------\n\n");
-    fclose(rep);
-    printf("Resultados guardados en reporte/bitacora_tiempos.txt\n");
+                         width, height, rBins, degreeBins, rMax, rScale);
 
-    int* h_acc_shared = (int*)calloc(degreeBins * rBins, sizeof(int));
-    cudaMemcpy(h_acc_shared, d_acc, sizeof(int) * degreeBins * rBins, cudaMemcpyDeviceToHost);
+    int* h_acc_shared = (int*)calloc(degreeBins*rBins, sizeof(int));
+    cudaMemcpy(h_acc_shared, d_acc, sizeof(int)*degreeBins*rBins, cudaMemcpyDeviceToHost);
+
     dibujarLineasColor("output_shared.ppm", img, h_acc_shared,
-                    width, height, rBins, degreeBins, rMax, rScale,
-                    255, 0, 0); // rojo
-    free(h_acc_shared);
-    printf("Imagen generada: output_shared.ppm\n");
+                       width, height, rBins, degreeBins, rMax, rScale,
+                       255,0,0);
 
+    guardarTransformadaHough("hough_shared.ppm", h_acc_shared, rBins, degreeBins);
 
-    // Liberar
+    fprintf(rep, "RESULTADOS GUARDADOS.\n\n");
+    fclose(rep);
+
+    // Liberación
     cudaFree(d_img);
-    cudaFree(d_cos);
-    cudaFree(d_sin);
+    cudaFree(d_cos_);
+    cudaFree(d_sin_);
     cudaFree(d_acc);
     free(h_cos);
     free(h_sin);
+    free(h_acc_global);
+    free(h_acc_const);
+    free(h_acc_shared);
     freePGM(img);
 
     return 0;
